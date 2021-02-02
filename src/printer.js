@@ -9,7 +9,7 @@ let dir = process.cwd();
 // Find top most pagedjs
 let pagedjsLocation = require.resolve("pagedjs/dist/paged.polyfill.js");
 let paths = pagedjsLocation.split("node_modules");
-let scriptPath = paths[0] + "node_modules" + paths[paths.length-1];
+let scriptPath = paths[0] + "node_modules" + paths[paths.length - 1];
 
 const PostProcesser = require("./postprocesser");
 
@@ -25,7 +25,9 @@ class Printer extends EventEmitter {
     this.allowedDomains = options.allowedDomains || [];
     this.ignoreHTTPSErrors = options.ignoreHTTPSErrors;
     this.browserWSEndpoint = options.browserEndpoint;
-    this.overrideDefaultBackgroundColor = options.overrideDefaultBackgroundColor;
+    this.overrideDefaultBackgroundColor =
+      options.overrideDefaultBackgroundColor;
+    this.noSandbox = options.noSandbox;
 
     this.pages = [];
   }
@@ -34,8 +36,12 @@ class Printer extends EventEmitter {
     let puppeteerOptions = {
       headless: this.headless,
       args: ["--disable-dev-shm-usage"],
-      ignoreHTTPSErrors: this.ignoreHTTPSErrors
+      ignoreHTTPSErrors: this.ignoreHTTPSErrors,
     };
+
+    if (this.noSandbox) {
+      puppeteerOptions.args.push("--no-sandbox");
+    }
 
     if (this.allowLocal) {
       puppeteerOptions.args.push("--allow-file-access-from-files");
@@ -54,7 +60,7 @@ class Printer extends EventEmitter {
 
   async render(input) {
     let resolver;
-    let rendered = new Promise(function(resolve, reject) {
+    let rendered = new Promise(function (resolve, reject) {
       resolver = resolve;
     });
 
@@ -65,7 +71,9 @@ class Printer extends EventEmitter {
     const page = await this.browser.newPage();
 
     if (this.overrideDefaultBackgroundColor) {
-      page._client.send('Emulation.setDefaultBackgroundColorOverride', { color: this.overrideDefaultBackgroundColor });
+      page._client.send("Emulation.setDefaultBackgroundColorOverride", {
+        color: this.overrideDefaultBackgroundColor,
+      });
     }
 
     let uri, url, relativePath, html;
@@ -84,10 +92,10 @@ class Printer extends EventEmitter {
 
     await page.setRequestInterception(true);
 
-    page.on('request', (request) => {
+    page.on("request", (request) => {
       let uri = new URL(request.url());
       let { host, protocol, pathname } = uri;
-      let local = protocol === "file:"
+      let local = protocol === "file:";
 
       if (local && this.withinAllowedPath(pathname) === false) {
         request.abort();
@@ -113,10 +121,9 @@ class Printer extends EventEmitter {
     });
 
     if (html) {
-      await page.setContent(html)
-        .catch((e) => {
-          console.error(e);
-        });
+      await page.setContent(html).catch((e) => {
+        console.error(e);
+      });
 
       if (url) {
         await page.evaluate((url) => {
@@ -128,12 +135,10 @@ class Printer extends EventEmitter {
           base.setAttribute("href", url);
         }, url);
       }
-
     } else {
-      await page.goto(url)
-        .catch((e) => {
-          console.error(e);
-        });
+      await page.goto(url).catch((e) => {
+        console.error(e);
+      });
     }
 
     await page.evaluate(() => {
@@ -141,15 +146,13 @@ class Printer extends EventEmitter {
       window.PagedConfig.auto = false;
     });
 
-
-
     await page.addScriptTag({
-      path: scriptPath
+      path: scriptPath,
     });
 
     for (const script of this.additionalScripts) {
       await page.addScriptTag({
-        path: script
+        path: script,
       });
     }
 
@@ -169,20 +172,32 @@ class Printer extends EventEmitter {
       this.emit("page", page);
     });
 
-    await page.exposeFunction("onRendered", (msg, width, height, orientation) => {
-      this.emit("rendered", msg, width, height, orientation);
-      resolver({msg, width, height, orientation});
-    });
+    await page.exposeFunction(
+      "onRendered",
+      (msg, width, height, orientation) => {
+        this.emit("rendered", msg, width, height, orientation);
+        resolver({ msg, width, height, orientation });
+      }
+    );
 
     await page.evaluate(() => {
       window.PagedPolyfill.on("page", (page) => {
-        const { id, width, height, startToken, endToken, breakAfter, breakBefore, position } = page;
+        const {
+          id,
+          width,
+          height,
+          startToken,
+          endToken,
+          breakAfter,
+          breakBefore,
+          position,
+        } = page;
 
         const mediabox = page.element.getBoundingClientRect();
         const cropbox = page.pagebox.getBoundingClientRect();
 
         function getPointsValue(value) {
-          return (Math.round(CSS.px(value).to("pt").value * 100) / 100);
+          return Math.round(CSS.px(value).to("pt").value * 100) / 100;
         }
 
         let boxes = {
@@ -190,17 +205,27 @@ class Printer extends EventEmitter {
             width: getPointsValue(mediabox.width),
             height: getPointsValue(mediabox.height),
             x: 0,
-            y: 0
+            y: 0,
           },
           crop: {
             width: getPointsValue(cropbox.width),
             height: getPointsValue(cropbox.height),
             x: getPointsValue(cropbox.x) - getPointsValue(mediabox.x),
-            y: getPointsValue(cropbox.y) - getPointsValue(mediabox.y)
-          }
+            y: getPointsValue(cropbox.y) - getPointsValue(mediabox.y),
+          },
         };
 
-        window.onPage({ id, width, height, startToken, endToken, breakAfter, breakBefore, position, boxes });
+        window.onPage({
+          id,
+          width,
+          height,
+          startToken,
+          endToken,
+          breakAfter,
+          breakBefore,
+          position,
+          boxes,
+        });
       });
 
       window.PagedPolyfill.on("size", (size) => {
@@ -208,7 +233,12 @@ class Printer extends EventEmitter {
       });
 
       window.PagedPolyfill.on("rendered", (flow) => {
-        let msg = "Rendering " + flow.total + " pages took " + flow.performance + " milliseconds.";
+        let msg =
+          "Rendering " +
+          flow.total +
+          " pages took " +
+          flow.performance +
+          " milliseconds.";
         window.onRendered(msg, flow.width, flow.height, flow.orientation);
       });
 
@@ -230,7 +260,7 @@ class Printer extends EventEmitter {
       }
       tagsToProcess.reverse();
 
-      const root = {children: [], depth: -1};
+      const root = { children: [], depth: -1 };
       let currentOutlineNode = root;
 
       while (tagsToProcess.length > 0) {
@@ -270,7 +300,7 @@ class Printer extends EventEmitter {
     }, tags);
   }
 
-  async pdf(input, options={}) {
+  async pdf(input, options = {}) {
     let page = await this.render(input);
 
     // Get metatags
@@ -289,7 +319,10 @@ class Printer extends EventEmitter {
       return meta;
     });
 
-    const outline = options.outlineTags.length > 0 ? await this._parseOutline(page, options.outlineTags) : null;
+    const outline =
+      options.outlineTags.length > 0
+        ? await this._parseOutline(page, options.outlineTags)
+        : null;
 
     let settings = {
       printBackground: true,
@@ -303,13 +336,12 @@ class Printer extends EventEmitter {
         right: 0,
         bottom: 0,
         left: 0,
-      }
+      },
     };
 
-    let pdf = await page.pdf(settings)
-      .catch((e) => {
-        console.error(e);
-      });
+    let pdf = await page.pdf(settings).catch((e) => {
+      console.error(e);
+    });
 
     await page.close();
 
@@ -329,10 +361,9 @@ class Printer extends EventEmitter {
   async html(input, stayopen) {
     let page = await this.render(input);
 
-    let content = await page.content()
-      .catch((e) => {
-        console.error(e);
-      });
+    let content = await page.content().catch((e) => {
+      console.error(e);
+    });
 
     await page.close();
     return content;
@@ -354,7 +385,11 @@ class Printer extends EventEmitter {
 
     for (let parent of this.allowedPaths) {
       const relative = path.relative(parent, pathname);
-      if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+      if (
+        relative &&
+        !relative.startsWith("..") &&
+        !path.isAbsolute(relative)
+      ) {
         return true;
       }
     }
@@ -368,7 +403,6 @@ class Printer extends EventEmitter {
     }
     return this.allowedDomains.includes(domain);
   }
-
 }
 
 module.exports = Printer;
