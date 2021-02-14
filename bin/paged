@@ -19,6 +19,7 @@ program
   .option("-w, --width [size]", "Print to Page Width [width] in MM")
   .option("-h --height [size]", "Print to Page Height [weight] in MM")
   .option("-z --noSandbox", "Disable Sandbox")
+  .option("--headless", "Enable Headless")
   .option("--forceTransparentBackground", "Print with transparent background")
   // .option("-m, --page-margin [margin]", "Print with margin [margin]")
   // .option("-n, --hyphenate [lang]", "Hyphenate with language [language], defaults to "en-us"")
@@ -127,13 +128,13 @@ if (typeof input === "string") {
 
 (async () => {
   const printerOptions = {
-    headless: headless,
+    headless: true,
     allowLocal: allowLocal,
     allowRemote: !program.blockRemote,
     allowedPaths: program.allowedPaths,
     allowedDomains: program.allowedDomains,
     additionalScripts: program.additionalScript,
-    noSandbox: program.noSandbox,
+    noSandbox: true,
   };
 
   if (program.forceTransparentBackground) {

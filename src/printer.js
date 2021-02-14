@@ -17,7 +17,7 @@ class Printer extends EventEmitter {
   constructor(options = {}) {
     super();
 
-    this.headless = options.headless !== false;
+    this.headless = true;
     this.allowLocal = options.allowLocal;
     this.allowRemote = options.allowRemote;
     this.additionalScripts = options.additionalScripts;
@@ -27,15 +27,15 @@ class Printer extends EventEmitter {
     this.browserWSEndpoint = options.browserEndpoint;
     this.overrideDefaultBackgroundColor =
       options.overrideDefaultBackgroundColor;
-    this.noSandbox = options.noSandbox;
+    this.noSandbox = true;
 
     this.pages = [];
   }
 
   async setup() {
     let puppeteerOptions = {
-      headless: this.headless,
-      args: ["--disable-dev-shm-usage"],
+      headless: true,
+      args: ["--disable-dev-shm-usage", "--no-sandbox"],
       ignoreHTTPSErrors: this.ignoreHTTPSErrors,
     };
 
